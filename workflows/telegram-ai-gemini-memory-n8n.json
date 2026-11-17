@@ -1,0 +1,203 @@
+{
+  "name": "Telegram AI Agent - OpenAI + Simple Memory (Docker Local)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Wajib sebelum aktivasi\n1. Pilih credential **Telegram Bot API** yang sama pada `Telegram Trigger` dan `Send Telegram Reply`.\n2. Pilih credential **OpenAI API** pada `OpenAI Chat Model`.\n3. Pastikan `WEBHOOK_URL` n8n adalah URL publik HTTPS milik n8n, bukan `https://api.telegram.org`.\n4. Simpan lalu **Publish/Activate** workflow agar n8n mendaftarkan webhook Telegram.\n\nCek status webhook:\n`https://api.telegram.org/bot<TOKEN>/getWebhookInfo`",
+        "height": 300,
+        "width": 520,
+        "color": 5
+      },
+      "id": "fb605663-987f-4c7e-ba04-51e62ab77809",
+      "name": "Setup Telegram",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "e0976943-ae3d-4e1d-9abe-a9e6f5f25996",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        400
+      ],
+      "webhookId": "983c3558-1e7d-42be-8997-aa37da82b58a",
+      "credentials": {
+        "telegramApi": {
+          "id": "C6X7rYkhhuTCPdSW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const update = $input.first().json;\nconst m = update.message ?? update.edited_message;\nif (!m || m.chat?.type !== 'private' || typeof m.text !== 'string' || !m.text.trim() || m.from?.is_bot === true) return [];\nconst chatId = String(m.chat.id);\nreturn [{ json: { chatId, sessionId: 'telegram:' + chatId, chatInput: m.text.trim().slice(0, 4000) } }];"
+      },
+      "id": "098fbff1-cc5a-4656-9711-d84aaa9f975a",
+      "name": "Normalize Telegram Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "Kamu adalah asisten AI Telegram yang ramah, ringkas, membantu, dan akurat. Jawab dalam bahasa Indonesia yang natural. Jangan mengarang fakta atau mengklaim punya akses ke sistem atau informasi real-time yang tidak tersedia. Jika pertanyaan ambigu, minta klarifikasi singkat. Gunakan teks sederhana yang nyaman dibaca di Telegram."
+        }
+      },
+      "id": "ac7742d9-d32d-4184-9990-4e5e8de31031",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        448,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normalize Telegram Message').first().json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "d66624c4-c958-45f3-be83-97d5788e2ded",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        584,
+        632
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Normalize Telegram Message').first().json.chatId }}",
+        "text": "={{ String($json.output ?? '').slice(0, 4000) }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "3d473d9a-31fa-4074-9f29-93af07679653",
+      "name": "Send Telegram Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        800,
+        400
+      ],
+      "webhookId": "2ce5e4b2-facf-4dbd-b258-1efb1df1c935",
+      "credentials": {
+        "telegramApi": {
+          "id": "C6X7rYkhhuTCPdSW",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        456,
+        632
+      ],
+      "id": "b498e478-374f-4d45-8d13-9714ee25b646",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "go67j5yhOEjTIiNq",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "533125db-2bd1-4aa0-a3bc-65b690746cff",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f3565c268a98e04e787d2d623441890e6dc97af6fb6b0e68330ffbeab725a981"
+  },
+  "nodeGroups": [],
+  "id": "XFAkLAD6yIQCOhz2",
+  "tags": []
+}

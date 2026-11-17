@@ -1,0 +1,99 @@
+{
+  "name": "WhatsApp Auto Reply - Evolution API (Local)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wa-autoreply-local",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "f35e1e07-1f27-4c78-af8e-265c1a49bb24",
+      "name": "Incoming WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -450,
+        100
+      ],
+      "webhookId": "71c24e38-fd57-4595-9308-9dc5814057f1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json.body ?? {};\nconst event = String(payload.event ?? '').toLowerCase().replace(/_/g, '.');\nconst data = payload.data ?? {};\nconst key = data.key ?? {};\nconst jid = String(key.remoteJid ?? '');\nconst text = String(data.message?.conversation ?? data.message?.extendedTextMessage?.text ?? '').trim();\nif (event !== 'messages.upsert' || key.fromMe === true || !jid.endsWith('@s.whatsapp.net') || !text) return [];\nconst lower = text.toLowerCase();\nlet reply;\nif (/^(halo|hai|hi|hello|menu|p)$/i.test(lower)) {\n  reply = 'Halo! 👋 Selamat datang di chatbot n8n.\\n\\nKetik:\\n1 - Info layanan\\n2 - Jam operasional\\n3 - Bantuan';\n} else if (lower === '1') {\n  reply = 'Ini adalah demo chatbot n8n + Evolution API. Silakan sesuaikan info layanan.';\n} else if (lower === '2') {\n  reply = 'Jam operasional demo: Senin–Jumat, 09.00–17.00 WIB.';\n} else if (lower === '3') {\n  reply = 'Silakan tulis pertanyaan. Untuk kembali ke menu, ketik MENU.';\n} else {\n  reply = 'Pesan diterima ✅\\nKetik MENU untuk melihat pilihan.';\n}\nreturn [{ json: { number: jid.split('@')[0], reply, instance: String(payload.instance ?? 'bot-local') } }];"
+      },
+      "id": "bb709849-8a56-4014-ab42-5a7b7b4fe829",
+      "name": "Filter and Compose Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -190,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ \"http://evolution-api:8080/message/sendText/\" + $json.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.number, text: $json.reply }) }}",
+        "options": {}
+      },
+      "id": "2d7c7c76-a7eb-4df0-99a1-07b36f3d1c8b",
+      "name": "Send WhatsApp Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        100,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Incoming WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Filter and Compose Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter and Compose Reply": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
